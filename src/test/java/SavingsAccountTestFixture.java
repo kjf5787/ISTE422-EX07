@@ -29,14 +29,16 @@ task runSavingsFixture(type: JavaExec) {
 public class SavingsAccountTestFixture {
     public static Logger logger = LogManager.getLogger(SavingsAccountTestFixture.class);
     // Note that we could also load the file from the classpath instead of hardcoding the pathname
-    static final String TEST_FILE = "src/test/resources/SavingsAccountTest.csv";
+    static String TEST_FILE = "src/test/resources/SavingsAccountTest.csv";
 
     record TestScenario(double initBalance,
-                        double interestRate,
+                        List<Double> interestRate,
                         List<Double> withdrawals,
                         List<Double> deposits,
                         int runMonthEndNTimes,
-                        double endBalance
+                        double endBalance,
+                        double minBalance,
+                        double minBalanceFee
     ) { }
 
     private static List<TestScenario> testScenarios;
@@ -64,20 +66,32 @@ public class SavingsAccountTestFixture {
 
             // set up account with specified starting balance and interest rate
             // TODO: Add code to create account....
+            SavingsAccount sa = new SavingsAccount("test "+testNum, -1, scenario.initBalance, 0, -1);
 
             // now process withdrawals, deposits
             // TODO: Add code to process withdrawals....
-
+            for (double withdrawalAmount : scenario.withdrawals) {
+                sa.withdraw(withdrawalAmount);
+            }
             // TODO: Add code to process deposits
-
+            for (double depositAmount : scenario.deposits) {
+                sa.deposit(depositAmount);
+            }
+            // set min balance and fee
+            sa.setMinimumBalance(scenario.minBalance);
+            sa.setBelowMinimumFee(scenario.minBalanceFee);
             // run month-end if desired and output register
             if (scenario.runMonthEndNTimes > 0) {
                 // TODO: Add code to run month-end....
+                for(int i = 0; i < scenario.runMonthEndNTimes; i++){
+                    sa.interestRate = scenario.interestRate.get(i);
+                    sa.monthEnd();
+                }
             }
 
             // make sure the balance is correct
             // TODO: add code to verify balance
-
+            assertThat("Test #" + testNum + ":" + scenario, sa.getBalance(), is(scenario.endBalance));
         }
     }
 
@@ -111,12 +125,20 @@ public class SavingsAccountTestFixture {
     private static TestScenario parseScenarioString(String scenarioAsString) {
         String [] scenarioValues = scenarioAsString.split(",");
         // should probably validate length here
-        double initialBalance = Double.parseDouble(scenarioValues[0]);
+        double initialBalance = Double.parseDouble(scenarioValues[0].trim());
+
         // TODO: parse the rest of your fields
-        List<Double> wds = parseListOfAmounts(scenarioValues[2]);
+        List<Double> interestRate = parseListOfAmounts(scenarioValues[1].trim());
+        List<Double> wds = parseListOfAmounts(scenarioValues[2].trim());
+        List<Double> deps = parseListOfAmounts(scenarioValues[3].trim());
+        int runMonthEnd = Integer.parseInt(scenarioValues[4].trim());
+        double finalBalance = Double.parseDouble(scenarioValues[5].trim());
+        double minimumBalance = Double.parseDouble(scenarioValues[6].trim());
+        double minimumBalanceFee = Double.parseDouble(scenarioValues[7].trim());
+
         // TODO: Replace these dummy values with _your_ field values to populate TestScenario object
         TestScenario scenario = new TestScenario(
-                initialBalance, 0.0, null, null, 0, 0.0
+                initialBalance, interestRate, wds, deps, runMonthEnd, finalBalance, minimumBalance, minimumBalanceFee
         );
         return scenario;
     }
@@ -139,20 +161,20 @@ public class SavingsAccountTestFixture {
 
         // TODO: Instead of hardcoded "false", determine if tests are coming from file or cmdline
         // Note: testsFromFile is just a suggestion, you don't have to use testsFromFile or even an if/then statement!
-        boolean testsFromFile = false;
+        //boolean testsFromFile = false;
 
         // Note: this is just a suggestion, you don't have to use testsFromFile or even an if/then statement!
-        if (testsFromFile) {
+        if (args[0].equals("-f")) {
             // if populating with scenarios from a CSV file...
             // TODO: We could get the filename from the cmdline, e.g. "-f CheckingAccountScenarios.csv"
             System.out.println("\n\n****** FROM FILE ******\n");
             // TODO: get filename from cmdline and use instead of TEST_FILE constant
-            List<String> scenarioStringsFromFile = Files.readAllLines(Paths.get(TEST_FILE));
+            List<String> scenarioStringsFromFile = Files.readAllLines(Paths.get(args[1]));
             // Note: toArray converts from a List to an array
             testScenarios = parseScenarioStrings(scenarioStringsFromFile);
             runJunitTests();
         }
-        else {
+        else if (args[0].equals("-t")) {
             // if specifying a scenario on the command line,
             // for example "-t '10, 20|20, , 40|10, 0'"
             // Note the single-quotes above ^^^ because of the embedded spaces and the pipe symbol

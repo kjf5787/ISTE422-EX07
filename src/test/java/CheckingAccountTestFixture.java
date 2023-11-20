@@ -19,14 +19,16 @@ import java.util.List;
 public class CheckingAccountTestFixture {
     public static Logger logger = LogManager.getLogger(CheckingAccountTestFixture.class);
     // We could read the file from classpath instead of hardcoding the pathname too
-    static final String TEST_FILE = "src/test/resources/CheckingAccountTest.csv";
+    static String TEST_FILE = "";
 
     record TestScenario(double initBalance,
                         List<Double> checks,
                         List<Double> withdrawals,
                         List<Double> deposits,
                         boolean runMonthEnd,
-                        double endBalance
+                        double endBalance,
+                        double minBalance,
+                        double minBalanceFee
     ) { }
 
     private static List<TestScenario> testScenarios;
@@ -66,6 +68,8 @@ public class CheckingAccountTestFixture {
             for (double depositAmount : scenario.deposits) {
                 ca.deposit(depositAmount);
             }
+            ca.setMinimumBalance(scenario.minBalance);
+            ca.setBelowMinimumFee(scenario.minBalanceFee);
 
             // run month-end if desired and output register
             if (scenario.runMonthEnd) {
@@ -111,13 +115,16 @@ public class CheckingAccountTestFixture {
     private static TestScenario parseScenarioString(String scenarioAsString) {
         String [] scenarioValues = scenarioAsString.split(",");
         // should probably validate length here
-        double initialBalance = Double.parseDouble(scenarioValues[0]);
-        List<Double> checks = parseListOfAmounts(scenarioValues[1]);
-        List<Double> wds = parseListOfAmounts(scenarioValues[2]);
-        List<Double> deps = parseListOfAmounts(scenarioValues[3]);
-        double finalBalance = Double.parseDouble(scenarioValues[4]);
+        double initialBalance = Double.parseDouble(scenarioValues[0].trim());
+        List<Double> checks = parseListOfAmounts(scenarioValues[1].trim());
+        List<Double> wds = parseListOfAmounts(scenarioValues[2].trim());
+        List<Double> deps = parseListOfAmounts(scenarioValues[3].trim());
+        double finalBalance = Double.parseDouble(scenarioValues[4].trim());
+        double minimumBalance = Double.parseDouble(scenarioValues[5].trim());
+        double minimumBalanceFee = Double.parseDouble(scenarioValues[6].trim());
+        Boolean runMonthEnd = Boolean.parseBoolean(scenarioValues[7].trim());
         TestScenario scenario = new TestScenario(
-                initialBalance, checks, wds, deps, false, finalBalance
+                initialBalance, checks, wds, deps, runMonthEnd, finalBalance, minimumBalance, minimumBalanceFee
         );
         return scenario;
     }
@@ -138,13 +145,22 @@ public class CheckingAccountTestFixture {
     public static void main(String [] args) throws IOException {
         System.out.println("START");
 
+        if(args.length == 0){
+            System.out.println("No file name provides");
+            TEST_FILE = "src/test/resources/CheckingAccountTest.csv";
+            
+        }
+        else{
+            TEST_FILE = args[0];
+        }
+
         // We can:
         // ... manually populate the list of scenarios we want to test...
         System.out.println("\n\n****** FROM OBJECTS ******\n");
         testScenarios = List.of(
-                new TestScenario(100, List.of(), List.of(), List.of(), false, 100),
-                new TestScenario(100, List.of(10d), List.of(), List.of(), false, 90),
-                new TestScenario(100, List.of(10.,20.), List.of(), List.of(10.), true, 80)
+                new TestScenario(100, List.of(), List.of(), List.of(), false, 100, 0, 0),
+                new TestScenario(100, List.of(10d), List.of(), List.of(), false, 90, 0, 0),
+                new TestScenario(100, List.of(10.,20.), List.of(), List.of(10.), true, 80, 0, 0)
                 );
         runJunitTests();
 
@@ -155,10 +171,10 @@ public class CheckingAccountTestFixture {
         // Same scenarios as above plus one more to verify it's running these string scenarios
         System.out.println("\n\n****** FROM STRINGS ******\n");
         List<String> scenarioStrings = List.of(
-                "0, , , 10|20, 30",
-                "100, , , , 100",
-                "100, 10, , , 90",
-                "100, 10|20, , 10, 80"
+                "0, , , 10|20, 30, 0, 0, false",
+                "100, , , , 100, 0, 0, false",
+                "100, 10, , , 90, 0, 0, false",
+                "100, 10|20, , 10, 80, 0, 0, false"
         );
         List<TestScenario> parsedScenarios = parseScenarioStrings(scenarioStrings);
         testScenarios = parsedScenarios;
